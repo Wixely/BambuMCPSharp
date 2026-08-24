@@ -1,0 +1,29 @@
+<Project>
+  <PropertyGroup>
+    <ManagePackageVersionsCentrally>true</ManagePackageVersionsCentrally>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The camera pair is Wixely's own MIT library: RTSPS transport plus pure-managed
+         H.264-to-PNG decoding (H264Sharp.Decoder underneath, also MIT and managed-only).
+         Served from the Wixely GitHub Packages feed, which needs authentication even for
+         public packages — see NuGet.config and the README. -->
+    <PackageVersion Include="BambuLab.X1Camera" Version="0.1.0-alpha.3" />
+    <PackageVersion Include="BambuLab.X1Camera.Imaging" Version="0.1.0-alpha.3" />
+    <!-- FluentFTP speaks the printer's implicit FTPS (port 990) including the TLS session
+         reuse its vsftpd demands on data connections. Pure managed, MIT. -->
+    <PackageVersion Include="FluentFTP" Version="54.2.0" />
+    <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.8" />
+    <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="1.3.0" />
+    <!-- MQTTnet 5: pure managed MQTT over TLS. v5 dropped the ManagedMqttClient, so
+         PrinterConnection owns its (small) reconnect loop. MIT. -->
+    <PackageVersion Include="MQTTnet" Version="5.2.0.1603" />
+    <PackageVersion Include="Serilog.AspNetCore" Version="10.0.0" />
+    <PackageVersion Include="Serilog.Enrichers.Environment" Version="3.0.1" />
+    <PackageVersion Include="Serilog.Enrichers.Process" Version="3.0.0" />
+    <PackageVersion Include="Serilog.Enrichers.Thread" Version="4.0.0" />
+    <PackageVersion Include="Serilog.Settings.Configuration" Version="10.0.0" />
+    <PackageVersion Include="Serilog.Sinks.Console" Version="6.1.1" />
+    <PackageVersion Include="Serilog.Sinks.File" Version="7.0.0" />
+  </ItemGroup>
+</Project>

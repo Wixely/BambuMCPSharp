@@ -1,0 +1,93 @@
+{
+  "Bambu": {
+    "Printers": [
+      {
+        "Alias": "x1c",
+        "Host": "",
+        "SerialNumber": "",
+        "AccessCode": "",
+        "Model": "X1C",
+        "CameraPort": 322,
+        "CameraCertificateSha256": "",
+        "Description": ""
+      }
+    ],
+    "DefaultAlias": "x1c",
+
+    "ReadOnly": true,
+
+    "AllowPrintControl": true,
+    "AllowStopPrint": false,
+    "AllowStartPrint": false,
+    "AllowSpeedControl": true,
+    "AllowTemperatureControl": false,
+    "AllowFanControl": true,
+    "AllowLightControl": true,
+    "AllowMotionControl": false,
+    "AllowRawGcode": false,
+    "AllowCalibration": false,
+    "AllowFileUpload": true,
+    "AllowFileDelete": false,
+
+    "EnableStatus": true,
+    "EnableControl": true,
+    "EnablePrintJobs": true,
+    "EnableFiles": true,
+    "EnableCamera": true,
+
+    "MaxNozzleTempC": 300,
+    "MaxBedTempC": 110,
+    "MaxUploadBytes": 256000000,
+    "MaxDownloadBytes": 256000000,
+    "MaxJsonChars": 60000,
+    "MaxGcodeChars": 2000,
+    "MaxItems": 500,
+
+    "StateFreshSeconds": 5,
+    "CommandAckTimeoutSeconds": 10,
+    "MqttConnectTimeoutSeconds": 15,
+    "CameraTimeoutSeconds": 30,
+    "FtpTimeoutSeconds": 60,
+
+    "FileTransferDirectory": "transfers",
+    "SnapshotDirectory": "snapshots"
+  },
+  "Server": {
+    "Host": "localhost",
+    "Port": 5718,
+    "Path": "/mcp",
+    "WindowsServiceName": "BambuMCPSharp",
+    "Password": ""
+  },
+  "Serilog": {
+    "MinimumLevel": {
+      "Default": "Information",
+      "Override": {
+        "Microsoft": "Warning",
+        "Microsoft.Hosting.Lifetime": "Information",
+        "System": "Warning"
+      }
+    },
+    "WriteTo": [
+      {
+        "Name": "Console",
+        "Args": {
+          "outputTemplate": "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}"
+        }
+      },
+      {
+        "Name": "File",
+        "Args": {
+          "path": "logs/bambumcp-.log",
+          "rollingInterval": "Day",
+          "retainedFileCountLimit": 14,
+          "fileSizeLimitBytes": 52428800,
+          "rollOnFileSizeLimit": true,
+          "shared": true,
+          "outputTemplate": "{Timestamp:yyyy-MM-dd HH:mm:ss.fff zzz} [{Level:u3}] {SourceContext}: {Message:lj}{NewLine}{Exception}"
+        }
+      }
+    ],
+    "Enrich": [ "FromLogContext", "WithMachineName", "WithProcessId", "WithThreadId" ]
+  }
+}
