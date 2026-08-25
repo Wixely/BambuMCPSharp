@@ -84,8 +84,12 @@ jobs:
       - name: Build
         run: dotnet build "${{ env.SOLUTION_FILE }}" -c Release --no-restore
 
-      - name: Test
-        run: dotnet test "${{ env.SOLUTION_FILE }}" -c Release --no-build --verbosity normal
+      - name: Run specifications
+        run: >
+          dotnet run
+          --project tests/BambuMCPSharp.Specs/BambuMCPSharp.Specs.csproj
+          -c Release
+          --no-build
 
       - name: Publish
         run: >

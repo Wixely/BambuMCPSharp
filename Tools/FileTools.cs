@@ -15,6 +15,83 @@ namespace BambuMCPSharp.Tools;
 [McpServerToolType]
 public static class FileTools
 {
+    [McpServerTool(Name = "bambu_inspect_project"),
+     Description("Inspect an already-sliced .gcode.3mf/.3mf or standalone .gcode in the configured transfer directory. Performs bounded structural and printer-model checks without uploading, modifying, or executing the file.")]
+    public static async Task<string> InspectProject(
+        PrinterRegistry registry,
+        SafetyGate gate,
+        IHostEnvironment env,
+        [Description("Name of the file inside the transfer directory to inspect.")] string localName,
+        [Description("Printer alias whose configured model should be used for compatibility checking. Omit for the default printer.")] string? alias = null,
+        CancellationToken ct = default)
+    {
+        gate.EnsureFeature(gate.Options.EnableFiles, "bambu_inspect_project", "EnableFiles");
+        var printer = registry.ResolveAlias(alias);
+        var localPath = ToolHelpers.ResolveLocalFile(
+            env.ContentRootPath, gate.Options.FileTransferDirectory, localName, "bambu_inspect_project");
+        if (!File.Exists(localPath))
+        {
+            throw new McpException(
+                $"'{localName}' was not found in the transfer directory ({gate.Options.FileTransferDirectory}).");
+        }
+
+        ProjectInspection inspection;
+        try
+        {
+            inspection = await ProjectInspector.InspectAsync(
+                localPath,
+                printer.Model,
+                new ProjectInspectionLimits(
+                    gate.Options.MaxProjectInspectBytes,
+                    gate.Options.MaxProjectArchiveEntries,
+                    gate.Options.MaxProjectUncompressedBytes),
+                ct);
+        }
+        catch (InvalidDataException exception)
+        {
+            throw new McpException($"Inspection of '{localName}' refused: {exception.Message}");
+        }
+        catch (IOException)
+        {
+            throw new McpException($"Inspection of '{localName}' failed because the file could not be read safely.");
+        }
+
+        return ToolHelpers.Json(gate, new
+        {
+            fileName = inspection.FileName,
+            format = inspection.Format,
+            sizeBytes = inspection.SizeBytes,
+            sha256 = inspection.Sha256,
+            targetModel = inspection.TargetModel,
+            structurallyValid = inspection.StructurallyValid,
+            modelMatchesTarget = inspection.ModelMatchesTarget,
+            findings = inspection.Findings,
+            plates = inspection.Plates.Select(plate => new
+            {
+                plate = plate.Plate,
+                entry = plate.Entry,
+                sizeBytes = plate.SizeBytes,
+                printerModel = plate.PrinterModel,
+                printerSettingsId = plate.PrinterSettingsId,
+                nozzleDiameterMm = plate.NozzleDiameterMm,
+                printableWidthMm = plate.PrintableWidthMm,
+                printableDepthMm = plate.PrintableDepthMm,
+                printableHeightMm = plate.PrintableHeightMm,
+                maximumZMm = plate.MaximumZMm,
+                totalLayers = plate.TotalLayers,
+                estimatedTime = plate.EstimatedTime,
+                bedType = plate.BedType,
+                filamentTypes = plate.FilamentTypes,
+                hasHeaderBlock = plate.HasHeaderBlock,
+                hasConfigBlock = plate.HasConfigBlock,
+                hasExecutableBlock = plate.HasExecutableBlock,
+                modelMatchesTarget = plate.ModelMatchesTarget,
+                structurallyValid = plate.StructurallyValid,
+                findings = plate.Findings,
+            }),
+        });
+    }
+
     [McpServerTool(Name = "bambu_list_files"),
      Description("List files on the printer's SD card over FTPS. Sliced projects usually live in '/' or '/cache'; timelapses in '/timelapse'. Model files (.3mf/.gcode) are flagged.")]
     public static async Task<string> ListFiles(

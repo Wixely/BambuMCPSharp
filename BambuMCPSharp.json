@@ -42,6 +42,9 @@
     "MaxJsonChars": 60000,
     "MaxGcodeChars": 2000,
     "MaxItems": 500,
+    "MaxProjectInspectBytes": 256000000,
+    "MaxProjectArchiveEntries": 2048,
+    "MaxProjectUncompressedBytes": 512000000,
 
     "StateFreshSeconds": 5,
     "CommandAckTimeoutSeconds": 10,

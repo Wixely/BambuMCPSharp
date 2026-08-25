@@ -13,6 +13,7 @@ Default port: **5718**. MCP endpoint: `http://localhost:5718/mcp`.
 - **HMS errors decoded.** Active printer errors come back as their `HMS_xxxx_xxxx_xxxx_xxxx` code with severity and the Bambu wiki URL that explains the fix.
 - **Full job control, layered safely.** Pause/resume by default once writes are enabled; stop, start, temperatures, motion, raw G-code, and calibration each behind their own gate, off by default.
 - **SD-card file management** over implicit FTPS: list, download, upload (the hand-off point from the slicing system), delete. Local files are confined to a configured transfer directory — the agent names files, never paths.
+- **Bounded sliced-file inspection.** `bambu_inspect_project` reads an existing `.gcode.3mf`, `.3mf`, or standalone `.gcode` from the transfer directory without uploading or executing it. It checks Bambu block structure, target printer model, plates, nozzle metadata, build dimensions, bed type, filament types, time, layers, and archive expansion limits.
 - **Read-only by default** — nothing touches the printer until you set `Bambu:ReadOnly=false`, and the dangerous tail needs a second gate on top.
 - **Multiple printers** by alias, for the day this grows into a farm.
 - Configuration via `BambuMCPSharp.json`, environment variables (`BAMBUMCP_` prefix), or command line.
@@ -34,7 +35,7 @@ Point your MCP client at `http://localhost:5718/mcp`. `http://localhost:5718/hea
 
 A typical first exchange: `bambu_list_printers`, then `bambu_status` to see what the machine is doing, `bambu_set_chamber_light on=true`, and `bambu_camera_snapshot` to look inside.
 
-A typical print cycle (with the gates opened): drop `model.3mf` into the transfer directory → `bambu_upload_file localName=model.3mf` → `bambu_start_print file=/model.3mf` → poll `bambu_status` and `bambu_camera_snapshot` → on trouble, `bambu_pause_print` (or `bambu_stop_print` if `AllowStopPrint` is on).
+A typical print cycle (with the gates opened): drop `model.gcode.3mf` into the transfer directory → `bambu_inspect_project localName=model.gcode.3mf` → `bambu_upload_file localName=model.gcode.3mf` → `bambu_start_print file=/model.gcode.3mf` → poll `bambu_status` and `bambu_camera_snapshot` → on trouble, `bambu_pause_print` (or `bambu_stop_print` if `AllowStopPrint` is on).
 
 ### Docker
 
@@ -69,7 +70,7 @@ All three channels authenticate with the same LAN access code (user `bblp`); the
 
 The access code is the only secret. It is never logged and never echoed by any tool. It changes whenever LAN mode is toggled on the printer — if everything suddenly returns authentication errors, re-read it from the printer screen.
 
-## Tools (29)
+## Tools (30)
 
 | Area | Tools |
 | --- | --- |
@@ -77,7 +78,7 @@ The access code is the only secret. It is never logged and never echoed by any t
 | Status | `bambu_status`, `bambu_status_raw`, `bambu_version`, `bambu_hms_errors`, `bambu_ams_status` |
 | Control | `bambu_pause_print`, `bambu_resume_print`, `bambu_stop_print`, `bambu_skip_objects`, `bambu_set_print_speed`, `bambu_set_nozzle_temp`, `bambu_set_bed_temp`, `bambu_set_part_fan`, `bambu_set_aux_fan`, `bambu_set_chamber_fan`, `bambu_set_chamber_light`, `bambu_home_axes`, `bambu_jog`, `bambu_send_gcode`, `bambu_run_calibration` |
 | Print jobs | `bambu_start_print` |
-| Files | `bambu_list_files`, `bambu_download_file`, `bambu_upload_file`, `bambu_delete_file` |
+| Files | `bambu_inspect_project`, `bambu_list_files`, `bambu_download_file`, `bambu_upload_file`, `bambu_delete_file` |
 | Camera | `bambu_camera_snapshot`, `bambu_camera_check` |
 
 Command tools report `acknowledged` when the printer echoes the command's sequence id, and say so explicitly when it does not — an unacknowledged command usually still executed, so the tool tells the agent to verify with `bambu_status` rather than pretending to know.
@@ -154,6 +155,8 @@ CI and the Docker build authenticate the feed with the workflow's `GITHUB_TOKEN`
 - **`bambu_start_print` acknowledged but nothing happens** — the SD path is case-sensitive and must be exact; confirm with `bambu_list_files`, and check `bambu_hms_errors`.
 
 The LAN protocol is not an official Bambu contract and can shift with firmware updates; the protocol layer is isolated in `Services/` for exactly that reason.
+
+Planned safety and workflow improvements are tracked in [ROADMAP.md](ROADMAP.md).
 
 ## License
 

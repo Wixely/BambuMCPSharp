@@ -117,6 +117,15 @@ public sealed class BambuOptions
     /// <summary>Cap on items returned by any single list tool.</summary>
     public int MaxItems { get; set; } = 500;
 
+    /// <summary>Cap on the compressed or standalone file size accepted by project inspection.</summary>
+    public long MaxProjectInspectBytes { get; set; } = 256_000_000;
+
+    /// <summary>Cap on ZIP entries examined in one 3MF project.</summary>
+    public int MaxProjectArchiveEntries { get; set; } = 2_048;
+
+    /// <summary>Cap on the total expanded bytes declared by a 3MF archive.</summary>
+    public long MaxProjectUncompressedBytes { get; set; } = 512_000_000;
+
     // ---------------------------------------------------------------- timing
 
     /// <summary>

@@ -1,0 +1,21 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "BambuMCPSharp",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/bin/Debug/net10.0/BambuMCPSharp.dll",
+      "cwd": "${workspaceFolder}"
+    },
+    {
+      "name": "BambuMCPSharp Specs",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build",
+      "program": "${workspaceFolder}/tests/BambuMCPSharp.Specs/bin/Debug/net10.0/BambuMCPSharp.Specs.dll",
+      "cwd": "${workspaceFolder}"
+    }
+  ]
+}
