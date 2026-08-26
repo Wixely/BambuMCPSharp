@@ -1,5 +1,9 @@
 # BambuMCPSharp
 
+[![MIT license](https://img.shields.io/github/license/Wixely/BambuMCPSharp)](LICENSE)
+[![Latest release](https://img.shields.io/github/v/release/Wixely/BambuMCPSharp)](https://github.com/Wixely/BambuMCPSharp/releases/latest)
+[![Release build](https://github.com/Wixely/BambuMCPSharp/actions/workflows/build-release-packages.yml/badge.svg)](https://github.com/Wixely/BambuMCPSharp/actions/workflows/build-release-packages.yml)
+
 A standalone C# **MCP (Model Context Protocol) server** for **Bambu Lab printers in offline LAN mode**, built for and validated on the **X1 Carbon (X1C)**. It speaks the printer's three LAN interfaces directly — MQTT for state and commands, implicit FTPS for the SD card, and the RTSPS chamber camera for snapshots — so an agent (or a computer-vision model watching the snapshots) can monitor a print, catch failures, and act.
 
 **Slicing is out of scope.** Another system produces the `.3mf`; this server uploads it, starts it, watches it, and photographs it. No Bambu Cloud, no account, no `bambu_networking.dll` — LAN mode and the access code only. 100% managed C#, MIT-licensed, MIT/Apache-2.0 dependencies, no native code anywhere in the closure.
@@ -157,6 +161,12 @@ CI and the Docker build authenticate the feed with the workflow's `GITHUB_TOKEN`
 The LAN protocol is not an official Bambu contract and can shift with firmware updates; the protocol layer is isolated in `Services/` for exactly that reason.
 
 Planned safety and workflow improvements are tracked in [ROADMAP.md](ROADMAP.md).
+
+## Contributing and security
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before opening a pull request, especially the rules for tests involving a real printer.
+
+For security vulnerabilities, follow [SECURITY.md](SECURITY.md) and do not publish credentials, printer details, or exploit instructions in a public issue.
 
 ## License
 

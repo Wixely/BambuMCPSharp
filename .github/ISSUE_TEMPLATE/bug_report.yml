@@ -1,0 +1,60 @@
+name: Bug report
+description: Report reproducible incorrect behavior without including private printer data.
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: Do not include credentials, serial numbers, private addresses, local paths, logs containing private data, snapshots, or sliced files.
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: Release version or commit identifier.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Startup or configuration
+        - MQTT status or commands
+        - FTPS file transfer
+        - Camera or snapshots
+        - MCP transport or tools
+        - Docker or packaging
+        - Other
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened?
+      description: Describe the observed and expected behavior using sanitized values.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: Reproduction steps
+      description: Include the minimum safe steps needed to reproduce the problem.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Operating system, deployment type, printer model, and firmware version. Omit serial numbers and network details.
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety and privacy checks
+      options:
+        - label: I removed credentials, identifiers, private addresses, local paths, and other sensitive data.
+          required: true
+        - label: This report does not contain generated G-code or an uploaded sliced file.
+          required: true
+        - label: I will use the private security-reporting route if this may be a vulnerability.
+          required: true

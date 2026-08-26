@@ -6,5 +6,12 @@
     <Deterministic>true</Deterministic>
     <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
     <AnalysisLevel>latest</AnalysisLevel>
+    <Authors>Wixely</Authors>
+    <Copyright>Copyright © 2026 Wixely</Copyright>
+    <Description>MCP server for Bambu Lab printers in offline LAN mode.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageProjectUrl>https://github.com/Wixely/BambuMCPSharp</PackageProjectUrl>
+    <RepositoryType>git</RepositoryType>
+    <RepositoryUrl>https://github.com/Wixely/BambuMCPSharp.git</RepositoryUrl>
   </PropertyGroup>
 </Project>
