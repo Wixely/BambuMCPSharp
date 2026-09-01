@@ -120,42 +120,15 @@ public static class StatusTools
         return ToolHelpers.Json(gate, result.Ack);
     }
 
-    [McpServerTool(Name = "bambu_hms_errors"),
-     Description("List the printer's active HMS (Health Management System) errors, decoded to their HMS_xxxx code, severity (fatal/serious/common/info), module, and the Bambu wiki URL explaining the fix. Empty list means no active errors.")]
-    public static async Task<string> HmsErrors(
+    [McpServerTool(Name = "bambu_errors"),
+     Description("The single authoritative printer error check. Returns both active HMS alerts (decoded code, severity, module, and Bambu wiki link) and the current print_error (decimal, hex, subtask context, and whether it can be acknowledged), plus relevant job, temperature, fan, storage, camera, connectivity, and safe next-action guidance. Read-only; an empty errors.hms list and null errors.printError mean no active error is reported.")]
+    public static async Task<string> Errors(
         PrinterRegistry registry,
         SafetyGate gate,
         [Description("Printer alias. Omit to use the default printer.")] string? alias = null,
         CancellationToken ct = default)
     {
-        gate.EnsureFeature(gate.Options.EnableStatus, "bambu_hms_errors", "EnableStatus");
-        var connection = registry.Get(alias);
-        var (state, reportedUtc) = await connection.GetStateAsync(ct);
-
-        var entries = (state["print"]?["hms"] as JsonArray)?
-            .OfType<JsonObject>()
-            .Select(HmsCode.Decode)
-            .ToList() ?? new List<JsonObject>();
-
-        return ToolHelpers.Json(gate, new
-        {
-            alias = connection.Printer.Alias,
-            reportedUtc,
-            count = entries.Count,
-            errors = entries,
-            printError = ToolHelpers.Num(state["print"]?["print_error"]),
-        });
-    }
-
-    [McpServerTool(Name = "bambu_diagnostics"),
-     Description("Get a focused diagnostic report: active HMS alerts, the current clearable print_error in decimal and hex, job/stage context, temperatures, heatbreak fan, Wi-Fi, SD card, camera state, and safe next-action guidance. Read-only.")]
-    public static async Task<string> Diagnostics(
-        PrinterRegistry registry,
-        SafetyGate gate,
-        [Description("Printer alias. Omit to use the default printer.")] string? alias = null,
-        CancellationToken ct = default)
-    {
-        gate.EnsureFeature(gate.Options.EnableStatus, "bambu_diagnostics", "EnableStatus");
+        gate.EnsureFeature(gate.Options.EnableStatus, "bambu_errors", "EnableStatus");
         var connection = registry.Get(alias);
         var (state, reportedUtc) = await connection.GetStateAsync(ct);
         var report = PrinterDiagnostics.CreateReport(

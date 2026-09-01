@@ -36,19 +36,29 @@ public static class PrinterDiagnostics
             stale,
             summary = new
             {
+                hasAnyError = errors.Count > 0 || printError is not null,
                 activeHmsCount = errors.Count,
                 hasPrintError = printError is not null,
                 hasClearablePrintErrorContext = printError is not null,
             },
-            print = new
+            errors = new
+            {
+                hms = errors,
+                printError = printError is null ? null : new
+                {
+                    code = printError.Code,
+                    hex = printError.HexCode,
+                    subtaskId = printError.SubtaskId,
+                    clearable = true,
+                },
+                mcPrintErrorCode = ReadInt64(print?["mc_print_error_code"]),
+            },
+            job = new
             {
                 gcodeState = ReadString(print?["gcode_state"]),
                 stageCode = stage,
                 stage = DescribeStage(stage),
                 subtaskId = ReadString(print?["subtask_id"]),
-                printError = printError?.Code,
-                printErrorHex = printError?.HexCode,
-                mcPrintErrorCode = ReadInt64(print?["mc_print_error_code"]),
             },
             environment = new
             {
@@ -65,7 +75,6 @@ public static class PrinterDiagnostics
                 sdCard = ReadString(print?["sdcard"]),
                 cameraStatus = ReadString(print?["xcam_status"]),
             },
-            activeErrors = errors,
             guidance = Guidance(errors.Count, printError),
         };
 
@@ -143,9 +152,14 @@ public static class PrinterDiagnostics
             return "No active HMS alert or clearable print error is reported.";
         }
 
+        if (hmsCount > 0 && printError is not null)
+        {
+            return "Both HMS alerts and a print_error are active. Resolve every physical cause and follow each HMS wiki link first. Then, if the print_error remains, call bambu_clear_print_error with this exact code and confirmPhysicalCauseResolved=true. Acknowledgement does not repair or clear HMS faults.";
+        }
+
         if (printError is not null)
         {
-            return "Resolve the physical cause first. Then call bambu_clear_print_error with this exact printError value and confirmPhysicalCauseResolved=true. This acknowledges the current print error; it does not repair the fault or clear unrelated HMS alerts.";
+            return "Resolve the physical cause first. Then call bambu_clear_print_error with this exact errors.printError.code value and confirmPhysicalCauseResolved=true. This acknowledges the current print error; it does not repair the fault or clear unrelated HMS alerts.";
         }
 
         return "HMS alerts have no generic clear operation. Follow each error's wiki guidance; the printer removes the alert after its underlying condition is resolved.";

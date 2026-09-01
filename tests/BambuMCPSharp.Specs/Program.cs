@@ -23,7 +23,8 @@ var specifications = new (string Name, Func<Task> Run)[]
     ("Skip Parts plan validates and verifies object ids", SkipPartsPlanValidatesAndVerifiesObjectIds),
     ("Skip Parts binds to the reported active file", SkipPartsBindsToReportedActiveFile),
     ("Skip Parts refuses to remove every remaining part", SkipPartsRefusesEveryRemainingPart),
-    ("printer diagnostics expose current error context", PrinterDiagnosticsExposeCurrentErrorContext),
+    ("combined error report exposes both error channels", CombinedErrorReportExposesBothChannels),
+    ("combined error report keeps empty channels explicit", CombinedErrorReportKeepsEmptyChannelsExplicit),
     ("clear-print-error payload matches Bambu protocol", ClearPrintErrorPayloadMatchesProtocol),
     ("error acknowledgement requires both safety gates", ErrorAcknowledgementRequiresBothSafetyGates),
 };
@@ -327,7 +328,7 @@ static async Task SkipPartsBindsToReportedActiveFile()
         });
 }
 
-static Task PrinterDiagnosticsExposeCurrentErrorContext()
+static Task CombinedErrorReportExposesBothChannels()
 {
     var state = JsonNode.Parse("""
         {
@@ -352,12 +353,28 @@ static Task PrinterDiagnosticsExposeCurrentErrorContext()
     var current = PrinterDiagnostics.CurrentPrintError(state);
 
     AssertEx.Equal("test-printer", report["alias"]!.GetValue<string>());
+    AssertEx.True(report["summary"]!["hasAnyError"]!.GetValue<bool>());
     AssertEx.Equal(1, report["summary"]!["activeHmsCount"]!.GetValue<int>());
     AssertEx.True(report["summary"]!["hasClearablePrintErrorContext"]!.GetValue<bool>());
-    AssertEx.Equal("paused: nozzle clog", report["print"]!["stage"]!.GetValue<string>());
+    AssertEx.Equal(1, report["errors"]!["hms"]!.AsArray().Count);
+    AssertEx.Equal(168496141L, report["errors"]!["printError"]!["code"]!.GetValue<long>());
+    AssertEx.Equal("0x0A0B0C0D", report["errors"]!["printError"]!["hex"]!.GetValue<string>());
+    AssertEx.Equal("paused: nozzle clog", report["job"]!["stage"]!.GetValue<string>());
+    AssertEx.True(report["guidance"]!.GetValue<string>().Contains("Both HMS alerts and a print_error", StringComparison.Ordinal));
     AssertEx.Equal(168496141L, current!.Code);
     AssertEx.Equal("0x0A0B0C0D", current.HexCode);
     AssertEx.Equal("task-1", current.SubtaskId);
+    return Task.CompletedTask;
+}
+
+static Task CombinedErrorReportKeepsEmptyChannelsExplicit()
+{
+    var state = JsonNode.Parse("""{ "print": { "gcode_state": "IDLE", "hms": [], "print_error": 0 } }""")!.AsObject();
+    var report = PrinterDiagnostics.CreateReport(state, DateTimeOffset.UtcNow, "test-printer", staleAfterSeconds: 15);
+
+    AssertEx.False(report["summary"]!["hasAnyError"]!.GetValue<bool>());
+    AssertEx.Equal(0, report["errors"]!["hms"]!.AsArray().Count);
+    AssertEx.True(report["errors"]!["printError"] is null);
     return Task.CompletedTask;
 }
 

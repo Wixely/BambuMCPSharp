@@ -14,7 +14,7 @@ Default port: **5718**. MCP endpoint: `http://localhost:5718/mcp`.
 
 - **Monitoring built for watch-loops.** `bambu_status` returns a parsed digest — job state, progress, layers, minutes remaining, decoded stage, temperatures, fans, light, AMS, active errors — that an agent can poll every few seconds. `bambu_status_raw` exposes the full firmware report when the digest is not enough.
 - **Camera snapshots for computer vision.** `bambu_camera_snapshot` captures a PNG keyframe from the X1C's RTSPS stream (port 322, "LAN Mode Liveview"), decoded entirely in managed code, and returns it as MCP image content and/or saves it to disk — ready to feed a vision model such as Qwen. During a multi-part print, the intended recovery loop is for an agent to identify a failing part from the camera, map it to inspected project metadata, and use X1 Skip Parts to preserve the other parts.
-- **Diagnostics and bounded error acknowledgement.** Active printer errors come back as their `HMS_xxxx_xxxx_xxxx_xxxx` code with severity and the Bambu wiki URL that explains the fix. `bambu_diagnostics` adds print-error, stage, temperature, fan, storage, camera, and connectivity context. A separate off-by-default tool can acknowledge only the exact current `print_error` after its physical cause is confirmed resolved.
+- **One authoritative error check and bounded acknowledgement.** `bambu_errors` returns both error channels together: decoded `HMS_xxxx_xxxx_xxxx_xxxx` alerts with their Bambu wiki links and the current `print_error` with its exact acknowledgement context. It also includes relevant stage, temperature, fan, storage, camera, and connectivity state. A separate off-by-default tool can acknowledge only the exact current `print_error` after its physical cause is confirmed resolved.
 - **Full job control, layered safely.** Pause/resume by default once writes are enabled; stop, start, temperatures, motion, raw G-code, and calibration each behind their own gate, off by default.
 - **SD-card file management** over implicit FTPS: list, download, upload (the hand-off point from the slicing system), delete. Local files are confined to a configured transfer directory — the agent names files, never paths.
 - **Bounded sliced-file inspection.** `bambu_inspect_project` reads an existing `.gcode.3mf`, `.3mf`, or standalone `.gcode` from the transfer directory without uploading or executing it. It checks Bambu block structure, target printer model, plates, nozzle metadata, build dimensions, bed type, filament types, time, layers, Skip Parts object IDs/names, and archive expansion limits.
@@ -76,12 +76,12 @@ All three channels authenticate with the same LAN access code (user `bblp`); the
 
 The access code is the only secret. It is never logged and never echoed by any tool. It changes whenever LAN mode is toggled on the printer — if everything suddenly returns authentication errors, re-read it from the printer screen.
 
-## Tools (32)
+## Tools (31)
 
 | Area | Tools |
 | --- | --- |
 | Printers | `bambu_list_printers`, `bambu_printer_health` |
-| Status | `bambu_status`, `bambu_status_raw`, `bambu_version`, `bambu_hms_errors`, `bambu_diagnostics`, `bambu_ams_status` |
+| Status | `bambu_status`, `bambu_status_raw`, `bambu_version`, `bambu_errors`, `bambu_ams_status` |
 | Control | `bambu_pause_print`, `bambu_resume_print`, `bambu_clear_print_error`, `bambu_stop_print`, `bambu_skip_objects`, `bambu_set_print_speed`, `bambu_set_nozzle_temp`, `bambu_set_bed_temp`, `bambu_set_part_fan`, `bambu_set_aux_fan`, `bambu_set_chamber_fan`, `bambu_set_chamber_light`, `bambu_home_axes`, `bambu_jog`, `bambu_send_gcode`, `bambu_run_calibration` |
 | Print jobs | `bambu_start_print` |
 | Files | `bambu_inspect_project`, `bambu_list_files`, `bambu_download_file`, `bambu_upload_file`, `bambu_delete_file` |
@@ -113,16 +113,16 @@ Every refusal names the exact config key to change. File transfers are confined 
 
 ### Error diagnostics and acknowledgement
 
-Use `bambu_diagnostics` first. It is read-only and reports active HMS alerts plus the current `printError` in decimal and hexadecimal, relevant printer state, and safe next-action guidance. HMS alerts do not have a generic clear command; resolve their underlying conditions and the printer removes them.
+Use `bambu_errors` as the single error check. It is read-only and always reports both `errors.hms` and `errors.printError`, plus relevant printer state and safe next-action guidance. An empty HMS list and a null print error mean neither error channel is active. HMS alerts do not have a generic clear command; resolve their underlying conditions and the printer removes them.
 
 `bambu_clear_print_error` mirrors Bambu Studio's printer-side `clean_print_error` acknowledgement. It deliberately requires all of the following:
 
 1. `Bambu:ReadOnly=false`.
 2. `Bambu:AllowErrorClear=true` (off by default).
-3. The exact decimal `printError` returned by the latest diagnostic call.
+3. The exact decimal `errors.printError.code` returned by the latest `bambu_errors` call.
 4. `confirmPhysicalCauseResolved=true`.
 
-The command is refused when the active error has changed or disappeared. Acknowledging an error does not repair the fault, does not clear unrelated HMS entries, and may allow a paused job to proceed; verify the result with `bambu_diagnostics`.
+The command is refused when the active error has changed or disappeared. Acknowledging an error does not repair the fault, does not clear unrelated HMS entries, and may allow a paused job to proceed; verify both channels again with `bambu_errors`.
 
 ### X1 Skip Parts
 
@@ -191,7 +191,7 @@ CI and the Docker build authenticate the feed with the workflow's `GITHUB_TOKEN`
 - **Camera times out** — "LAN Mode Liveview" is a separate switch from LAN mode itself; enable it on the printer screen. `bambu_camera_check` verifies the path end to end.
 - **Snapshots are black** — the chamber light is off: `bambu_set_chamber_light on=true`.
 - **FTPS fails mid-transfer** — the printer's FTP daemon is single-user-grade; retry, and avoid concurrent transfers to the same printer.
-- **`bambu_start_print` acknowledged but nothing happens** — the SD path is case-sensitive and must be exact; confirm with `bambu_list_files`, and check `bambu_hms_errors`.
+- **`bambu_start_print` acknowledged but nothing happens** — the SD path is case-sensitive and must be exact; confirm with `bambu_list_files`, and check both error channels with `bambu_errors`.
 
 The LAN protocol is not an official Bambu contract and can shift with firmware updates; the protocol layer is isolated in `Services/` for exactly that reason.
 

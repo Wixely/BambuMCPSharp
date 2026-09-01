@@ -46,11 +46,11 @@ public static class ControlTools
     }
 
     [McpServerTool(Name = "bambu_clear_print_error"),
-     Description("Acknowledge the printer's current print_error after the physical cause is resolved. Requires the exact printError value returned by bambu_diagnostics, confirmPhysicalCauseResolved=true, Bambu:ReadOnly=false, and Bambu:AllowErrorClear=true (off by default). This does not repair faults, clear unrelated HMS alerts, or blindly clear all errors.")]
+     Description("Acknowledge the printer's current print_error after the physical cause is resolved. Requires the exact errors.printError.code returned by bambu_errors, confirmPhysicalCauseResolved=true, Bambu:ReadOnly=false, and Bambu:AllowErrorClear=true (off by default). This does not repair faults, clear unrelated HMS alerts, or blindly clear all errors.")]
     public static async Task<string> ClearPrintError(
         PrinterRegistry registry,
         SafetyGate gate,
-        [Description("Exact decimal printError value currently returned by bambu_diagnostics. The command is refused if it changed.")] long expectedPrintError,
+        [Description("Exact decimal errors.printError.code currently returned by bambu_errors. The command is refused if it changed.")] long expectedPrintError,
         [Description("Must be true to confirm that a person has resolved the error's physical cause.")] bool confirmPhysicalCauseResolved,
         [Description("Printer alias. Omit to use the default printer.")] string? alias = null,
         CancellationToken ct = default)
@@ -71,13 +71,13 @@ public static class ControlTools
         {
             throw new McpException(
                 "MCP tool 'bambu_clear_print_error' refused: the printer reports no active print_error. " +
-                "Run bambu_diagnostics again before retrying.");
+                "Run bambu_errors again before retrying.");
         }
         if (current.Code != expectedPrintError)
         {
             throw new McpException(
                 $"MCP tool 'bambu_clear_print_error' refused: expected print_error {expectedPrintError} " +
-                $"but the printer now reports {current.Code}. Run bambu_diagnostics again; do not clear a changed error blindly.");
+                $"but the printer now reports {current.Code}. Run bambu_errors again; do not clear a changed error blindly.");
         }
 
         var result = await connection.SendAsync(
@@ -88,7 +88,7 @@ public static class ControlTools
         {
             printError = current.Code,
             printErrorHex = current.HexCode,
-            note = "Acknowledgement sent. Verify with bambu_diagnostics; an unresolved physical fault may reappear or remain active.",
+            note = "Acknowledgement sent. Verify both HMS and print_error state with bambu_errors; an unresolved physical fault may reappear or remain active.",
         });
     }
 
