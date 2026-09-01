@@ -148,46 +148,5 @@ internal static class ToolHelpers
     };
 
     /// <summary>Decode <c>print.stg_cur</c> into the stage name shown on the printer screen.</summary>
-    public static string StageName(double? stage) => stage switch
-    {
-        null => "unknown",
-        -1 or 255 => "idle",
-        0 => "printing",
-        1 => "auto bed leveling",
-        2 => "heatbed preheating",
-        3 => "sweeping xy mech mode",
-        4 => "changing filament",
-        5 => "M400 pause",
-        6 => "paused: filament runout",
-        7 => "heating hotend",
-        8 => "calibrating extrusion",
-        9 => "scanning bed surface",
-        10 => "inspecting first layer",
-        11 => "identifying build plate type",
-        12 => "calibrating micro lidar",
-        13 => "homing toolhead",
-        14 => "cleaning nozzle tip",
-        15 => "checking extruder temperature",
-        16 => "paused: by user",
-        17 => "paused: front cover falling",
-        18 => "calibrating micro lidar",
-        19 => "calibrating extrusion flow",
-        20 => "paused: nozzle temperature malfunction",
-        21 => "paused: heat bed temperature malfunction",
-        22 => "filament unloading",
-        23 => "paused: skipped step",
-        24 => "filament loading",
-        25 => "calibrating motor noise",
-        26 => "paused: AMS lost",
-        27 => "paused: low speed of heat break fan",
-        28 => "paused: chamber temperature control error",
-        29 => "cooling chamber",
-        30 => "paused: user gcode",
-        31 => "motor noise showoff",
-        32 => "paused: nozzle filament covered detected",
-        33 => "paused: cutter error",
-        34 => "paused: first layer error",
-        35 => "paused: nozzle clog",
-        _ => $"stage-{stage}",
-    };
+    public static string StageName(double? stage) => PrinterDiagnostics.DescribeStage(stage);
 }

@@ -77,6 +77,12 @@ public sealed class BambuOptions
     /// <summary>Delete files from the SD card. Off by default.</summary>
     public bool AllowFileDelete { get; set; } = false;
 
+    /// <summary>
+    /// Acknowledge the printer's current <c>print_error</c> after its physical cause has
+    /// been resolved. Off by default because dismissing an error may allow a paused job to proceed.
+    /// </summary>
+    public bool AllowErrorClear { get; set; } = false;
+
     // ---------------------------------------------------------------- feature toggles
 
     /// <summary>Expose status / monitoring tools.</summary>

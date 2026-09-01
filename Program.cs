@@ -219,6 +219,7 @@ public static class Program
         log.Information(
             "  File upload: {Upload}   delete: {Delete}",
             options.AllowFileUpload, options.AllowFileDelete);
+        log.Information("  Error acknowledgement: {ErrorClear}", options.AllowErrorClear);
         log.Information(
             "  Transfers: {Transfers}   snapshots: {Snapshots}",
             options.FileTransferDirectory, options.SnapshotDirectory);

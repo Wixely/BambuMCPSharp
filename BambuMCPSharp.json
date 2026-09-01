@@ -28,6 +28,7 @@
     "AllowCalibration": false,
     "AllowFileUpload": true,
     "AllowFileDelete": false,
+    "AllowErrorClear": false,
 
     "EnableStatus": true,
     "EnableControl": true,

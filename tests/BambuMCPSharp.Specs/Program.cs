@@ -1,6 +1,10 @@
 using System.IO.Compression;
 using System.Text;
+using System.Text.Json.Nodes;
+using BambuMCPSharp.Configuration;
 using BambuMCPSharp.Services;
+using Microsoft.Extensions.Options;
+using ModelContextProtocol;
 
 var specifications = new (string Name, Func<Task> Run)[]
 {
@@ -13,6 +17,9 @@ var specifications = new (string Name, Func<Task> Run)[]
     ("file inspection size is bounded", FileInspectionSizeIsBounded),
     ("3MF entry count is bounded", ThreeMfEntryCountIsBounded),
     ("3MF expansion is bounded", ThreeMfExpansionIsBounded),
+    ("printer diagnostics expose current error context", PrinterDiagnosticsExposeCurrentErrorContext),
+    ("clear-print-error payload matches Bambu protocol", ClearPrintErrorPayloadMatchesProtocol),
+    ("error acknowledgement requires both safety gates", ErrorAcknowledgementRequiresBothSafetyGates),
 };
 
 var failures = 0;
@@ -152,6 +159,84 @@ static async Task ThreeMfExpansionIsBounded()
         await AssertEx.ThrowsAsync<InvalidDataException>(() =>
             ProjectInspector.InspectAsync(path, "X1C", new ProjectInspectionLimits(1_000_000, 10, 32)));
     });
+}
+
+static Task PrinterDiagnosticsExposeCurrentErrorContext()
+{
+    var state = JsonNode.Parse("""
+        {
+          "print": {
+            "gcode_state": "PAUSE",
+            "stg_cur": 35,
+            "subtask_id": "task-1",
+            "print_error": 168496141,
+            "nozzle_temper": 220.5,
+            "bed_temper": 55,
+            "wifi_signal": "-48dBm",
+            "hms": [ { "attr": 134217729, "code": 196609 } ]
+          }
+        }
+        """)!.AsObject();
+
+    var report = PrinterDiagnostics.CreateReport(
+        state,
+        DateTimeOffset.UtcNow,
+        "test-printer",
+        staleAfterSeconds: 15);
+    var current = PrinterDiagnostics.CurrentPrintError(state);
+
+    AssertEx.Equal("test-printer", report["alias"]!.GetValue<string>());
+    AssertEx.Equal(1, report["summary"]!["activeHmsCount"]!.GetValue<int>());
+    AssertEx.True(report["summary"]!["hasClearablePrintErrorContext"]!.GetValue<bool>());
+    AssertEx.Equal("paused: nozzle clog", report["print"]!["stage"]!.GetValue<string>());
+    AssertEx.Equal(168496141L, current!.Code);
+    AssertEx.Equal("0x0A0B0C0D", current.HexCode);
+    AssertEx.Equal("task-1", current.SubtaskId);
+    return Task.CompletedTask;
+}
+
+static Task ClearPrintErrorPayloadMatchesProtocol()
+{
+    var command = PrinterDiagnostics.CreateClearPrintErrorCommand(
+        new PrintErrorContext(168496141, "task-1"));
+
+    AssertEx.Equal("clean_print_error", command["command"]!.GetValue<string>());
+    AssertEx.Equal("task-1", command["subtask_id"]!.GetValue<string>());
+    AssertEx.Equal(168496141L, command["print_error"]!.GetValue<long>());
+    AssertEx.False(command.ContainsKey("sequence_id"));
+    return Task.CompletedTask;
+}
+
+static async Task ErrorAcknowledgementRequiresBothSafetyGates()
+{
+    var readOnlyGate = new SafetyGate(Options.Create(new BambuOptions
+    {
+        ReadOnly = true,
+        AllowErrorClear = true,
+    }));
+    await AssertEx.ThrowsAsync<McpException>(() =>
+    {
+        readOnlyGate.EnsureErrorClear("bambu_clear_print_error");
+        return Task.CompletedTask;
+    });
+
+    var categoryOffGate = new SafetyGate(Options.Create(new BambuOptions
+    {
+        ReadOnly = false,
+        AllowErrorClear = false,
+    }));
+    await AssertEx.ThrowsAsync<McpException>(() =>
+    {
+        categoryOffGate.EnsureErrorClear("bambu_clear_print_error");
+        return Task.CompletedTask;
+    });
+
+    var enabledGate = new SafetyGate(Options.Create(new BambuOptions
+    {
+        ReadOnly = false,
+        AllowErrorClear = true,
+    }));
+    enabledGate.EnsureErrorClear("bambu_clear_print_error");
 }
 
 static ProjectInspectionLimits DefaultLimits() => new(1_000_000, 100, 2_000_000);

@@ -94,6 +94,10 @@ public sealed class SafetyGate
         _options.AllowFileDelete, tool, "AllowFileDelete",
         "Deleting an SD-card file cannot be undone from here.");
 
+    public void EnsureErrorClear(string tool) => EnsureAllowed(
+        _options.AllowErrorClear, tool, "AllowErrorClear",
+        "Acknowledging a printer error may allow a paused job to proceed; resolve the physical cause first.");
+
     /// <summary>Feature toggle for a whole tool category.</summary>
     public void EnsureFeature(bool enabled, string tool, string configKey)
     {

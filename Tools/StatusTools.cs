@@ -146,6 +146,25 @@ public static class StatusTools
         });
     }
 
+    [McpServerTool(Name = "bambu_diagnostics"),
+     Description("Get a focused diagnostic report: active HMS alerts, the current clearable print_error in decimal and hex, job/stage context, temperatures, heatbreak fan, Wi-Fi, SD card, camera state, and safe next-action guidance. Read-only.")]
+    public static async Task<string> Diagnostics(
+        PrinterRegistry registry,
+        SafetyGate gate,
+        [Description("Printer alias. Omit to use the default printer.")] string? alias = null,
+        CancellationToken ct = default)
+    {
+        gate.EnsureFeature(gate.Options.EnableStatus, "bambu_diagnostics", "EnableStatus");
+        var connection = registry.Get(alias);
+        var (state, reportedUtc) = await connection.GetStateAsync(ct);
+        var report = PrinterDiagnostics.CreateReport(
+            state,
+            reportedUtc,
+            connection.Printer.Alias,
+            gate.Options.StateFreshSeconds * 3);
+        return ToolHelpers.Json(gate, report);
+    }
+
     [McpServerTool(Name = "bambu_ams_status"),
      Description("Get AMS (filament system) detail: each unit's humidity and temperature, and each tray's filament type, colour, and remaining percentage. Reports 'no AMS' when none is fitted.")]
     public static async Task<string> AmsStatus(
