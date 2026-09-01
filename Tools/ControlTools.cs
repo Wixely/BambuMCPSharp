@@ -108,7 +108,7 @@ public static class ControlTools
     }
 
     [McpServerTool(Name = "bambu_skip_objects"),
-     Description("Use the X1/X1C mid-print Skip Parts feature for named objects from a locally inspected sliced project. Requires a matching running/paused job, safe unique identify_id metadata, at least one unskipped part left afterward, Bambu:ReadOnly=false, and Bambu:AllowPrintControl=true. Returns bounded verification from print.s_obj.")]
+     Description("Use the X1/X1C mid-print Skip Parts feature for named objects from a locally inspected sliced project. Intended for an agent that has identified one failing part with bambu_camera_snapshot: pause first, map the visible part unambiguously to an identify_id from bambu_inspect_project, skip it, visually re-check, then resume. Requires a matching running/paused job, safe unique metadata, at least one unskipped part left afterward, Bambu:ReadOnly=false, and Bambu:AllowPrintControl=true. Returns bounded verification from print.s_obj.")]
     public static async Task<string> SkipObjects(
         PrinterRegistry registry,
         SafetyGate gate,

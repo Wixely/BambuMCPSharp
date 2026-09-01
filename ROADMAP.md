@@ -9,6 +9,7 @@ This roadmap keeps slicing and G-code generation outside BambuMCPSharp. The serv
 ## Current validation priority
 
 - [ ] **End-to-end X1 Skip Parts workflow** — Owner: TBD. Implementation completed: 2026-09-01. Project inspection now catalogues each plate's object IDs, names, and pre-skipped state; the command correlates the local project with the active print, validates live `s_obj`, rejects unsafe/unknown/duplicate/all-remaining selections, and performs bounded post-command verification. The X1C's live `s_obj` report shape was confirmed read-only on 2026-09-01. Remaining: validate the command payload and physical skip behavior with a deliberately prepared multi-object X1C test print.
+- [ ] **Vision-to-part correlation for Skip Parts** — Owner: TBD. Complete the intended agent recovery loop: detect a failing part in `bambu_camera_snapshot`, pause first, map the visible part to the selected plate's Bambu `identify_id`, skip only that part, verify `s_obj`, visually re-check, and resume. Parse bounded per-object plate positions/bounding boxes from `Metadata/plate_N.json`, expose a stable plate map, and investigate an X1C camera-to-bed transform or annotated snapshot. Treat ambiguous visual matches as a refusal that requires explicit user confirmation.
 
 ## P0 — safe print hand-off
 

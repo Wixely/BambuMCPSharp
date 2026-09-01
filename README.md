@@ -13,7 +13,7 @@ Default port: **5718**. MCP endpoint: `http://localhost:5718/mcp`.
 ## Features
 
 - **Monitoring built for watch-loops.** `bambu_status` returns a parsed digest — job state, progress, layers, minutes remaining, decoded stage, temperatures, fans, light, AMS, active errors — that an agent can poll every few seconds. `bambu_status_raw` exposes the full firmware report when the digest is not enough.
-- **Camera snapshots for computer vision.** `bambu_camera_snapshot` captures a PNG keyframe from the X1C's RTSPS stream (port 322, "LAN Mode Liveview"), decoded entirely in managed code, and returns it as MCP image content and/or saves it to disk — ready to feed a vision model such as Qwen.
+- **Camera snapshots for computer vision.** `bambu_camera_snapshot` captures a PNG keyframe from the X1C's RTSPS stream (port 322, "LAN Mode Liveview"), decoded entirely in managed code, and returns it as MCP image content and/or saves it to disk — ready to feed a vision model such as Qwen. During a multi-part print, the intended recovery loop is for an agent to identify a failing part from the camera, map it to inspected project metadata, and use X1 Skip Parts to preserve the other parts.
 - **Diagnostics and bounded error acknowledgement.** Active printer errors come back as their `HMS_xxxx_xxxx_xxxx_xxxx` code with severity and the Bambu wiki URL that explains the fix. `bambu_diagnostics` adds print-error, stage, temperature, fan, storage, camera, and connectivity context. A separate off-by-default tool can acknowledge only the exact current `print_error` after its physical cause is confirmed resolved.
 - **Full job control, layered safely.** Pause/resume by default once writes are enabled; stop, start, temperatures, motion, raw G-code, and calibration each behind their own gate, off by default.
 - **SD-card file management** over implicit FTPS: list, download, upload (the hand-off point from the slicing system), delete. Local files are confined to a configured transfer directory — the agent names files, never paths.
@@ -131,6 +131,16 @@ The command is refused when the active error has changed or disappeared. Acknowl
 During a matching running or paused X1/X1C job, call `bambu_skip_objects` with the inspected `localName`, one-based `plate`, and one or more `objectIds`. The tool re-inspects the local project immediately before the command and refuses unknown or duplicate IDs, an active-job filename mismatch, parts already listed in the printer's `s_obj`, unsafe slicer metadata, or a request that would skip every remaining part. Its result names the requested and remaining parts and reports whether a refreshed printer state contains the requested IDs. `bambu_status` also exposes the current `skippedObjectIds`.
 
 Skipping is irreversible for the current print. If every remaining part should stop, use the separately gated `bambu_stop_print`; Skip Parts intentionally cannot be used as an indirect stop command.
+
+The intended vision-guided recovery workflow is:
+
+1. An agent monitors `bambu_status` and periodic `bambu_camera_snapshot` images.
+2. When one part appears detached, warped, or is producing spaghetti, pause the print with `bambu_pause_print` before spending more material or risking nearby parts.
+3. Use `bambu_inspect_project` to obtain the selected plate's named parts and `identifyId` values.
+4. Correlate the failing physical part in the camera image with the corresponding sliced-project part.
+5. Call `bambu_skip_objects` for only that part, confirm its ID appears in `skippedObjectIds`, inspect another camera frame, and then resume the print.
+
+The command and verification pieces are implemented. Fully automatic visual correlation is not yet guaranteed: the current inspector exposes names and IDs, but not each part's plate bounding box or an X1C camera-to-bed transform. Until that spatial mapping is added and validated, an agent should skip only when the failing part can be identified unambiguously from its name, known plate layout, or explicit user confirmation.
 
 ## Configuration
 

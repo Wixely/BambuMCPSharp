@@ -17,7 +17,7 @@ namespace BambuMCPSharp.Tools;
 public static class CameraTools
 {
     [McpServerTool(Name = "bambu_camera_snapshot"),
-     Description("Capture one still frame (PNG) from the printer's chamber camera. Returns the image for a vision model to inspect, and/or saves it into the snapshot directory (Bambu:SnapshotDirectory). Needs 'LAN Mode Liveview' enabled on the printer. Tip: bambu_set_chamber_light on first — the chamber is dark.")]
+     Description("Capture one still frame (PNG) from the printer's chamber camera. Returns the image for a vision model to inspect, and/or saves it into the snapshot directory (Bambu:SnapshotDirectory). During a multi-part print, pair this with bambu_inspect_project and bambu_skip_objects to identify and skip one failing part while preserving the others; pause first and refuse ambiguous image-to-part matches. Needs 'LAN Mode Liveview' enabled on the printer. Tip: bambu_set_chamber_light on first — the chamber is dark.")]
     public static async Task<CallToolResult> Snapshot(
         PrinterRegistry registry,
         SafetyGate gate,
