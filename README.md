@@ -25,7 +25,9 @@ Default port: **5718**. MCP endpoint: `http://localhost:5718/mcp`.
 
 ## Quick start
 
-On the printer: **Settings → Network → LAN Only Mode** (note the **access code**), and enable **LAN Mode Liveview** for the camera. The serial number is on the same screen.
+On the printer: **Settings → Network → LAN Only Mode** (note the **access code**), and enable **LAN Mode Liveview** for the camera.
+
+For `SerialNumber`, use the printer's actual serial from **Settings → General → Device info** on the printer itself. It looks like `00M00***********`. Do not use the separate **Device** identifier, which looks like `xxx-xxx-xxx`; that identifier does not form the printer's MQTT topics.
 
 ```sh
 dotnet run -- \
@@ -134,7 +136,7 @@ Set `Server:Password` to require authentication on `/mcp`. Clients send it as `X
 
 ## Building
 
-Requires the .NET 10 SDK. The camera packages (`BambuLab.X1Camera`, `BambuLab.X1Camera.Imaging`, and transitively `H264Sharp.Decoder`) come from the **Wixely GitHub Packages feed**, and GitHub requires authentication even for public packages. One-time setup with a token carrying `read:packages`:
+Requires the .NET 10 SDK. The FTPS adapter (`Wixely.FluentFTP.BouncyCastle`) and camera packages (`BambuLab.X1Camera`, `BambuLab.X1Camera.Imaging`, and transitively `H264Sharp.Decoder`) come from the **Wixely GitHub Packages feed**, and GitHub requires authentication even for public packages. One-time setup with a token carrying `read:packages`:
 
 ```sh
 dotnet nuget update source GitHub-Wixely-Packages \

@@ -10,9 +10,12 @@
          public packages — see NuGet.config and the README. -->
     <PackageVersion Include="BambuLab.X1Camera" Version="0.1.0-alpha.3" />
     <PackageVersion Include="BambuLab.X1Camera.Imaging" Version="0.1.0-alpha.3" />
-    <!-- FluentFTP speaks the printer's implicit FTPS (port 990) including the TLS session
-         reuse its vsftpd demands on data connections. Pure managed, MIT. -->
+    <!-- FluentFTP speaks the printer's implicit FTPS (port 990). Its default SslStream
+         transport cannot force the control-session reuse required by the printer. -->
     <PackageVersion Include="FluentFTP" Version="54.2.0" />
+    <!-- Bouncy Castle custom stream that explicitly resumes the FTPS control session
+         on data connections. Published from its standalone GitHub repository. MIT. -->
+    <PackageVersion Include="Wixely.FluentFTP.BouncyCastle" Version="0.1.0-alpha.1" />
     <PackageVersion Include="Microsoft.Extensions.Hosting.WindowsServices" Version="10.0.8" />
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="1.3.0" />
     <!-- MQTTnet 5: pure managed MQTT over TLS. v5 dropped the ManagedMqttClient, so

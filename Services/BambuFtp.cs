@@ -2,6 +2,7 @@ using BambuMCPSharp.Configuration;
 using FluentFTP;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol;
+using Wixely.FluentFTP.BouncyCastle;
 
 namespace BambuMCPSharp.Services;
 
@@ -10,8 +11,9 @@ namespace BambuMCPSharp.Services;
 /// the access code). Sessions are opened per call and closed immediately: the printer's FTP
 /// daemon is single-user-grade and long-held control connections go stale mid-print.
 ///
-/// The daemon also demands TLS session reuse on data connections; FluentFTP plus the
-/// platform TLS stacks (SChannel, OpenSSL on .NET 8+) resume transparently.
+/// The daemon also demands TLS session reuse on data connections. FluentFTP is configured
+/// with the Bouncy Castle custom stream so every data connection explicitly resumes the
+/// control connection's TLS 1.2 session.
 /// </summary>
 public sealed class BambuFtp
 {
@@ -40,6 +42,14 @@ public sealed class BambuFtp
         client.Config.ReadTimeout = timeoutMs;
         client.Config.DataConnectionConnectTimeout = timeoutMs;
         client.Config.DataConnectionReadTimeout = timeoutMs;
+        client.Config.CustomStream = typeof(BouncyCastleFtpStream);
+        client.Config.CustomStreamConfig = new BouncyCastleFtpStreamConfig
+        {
+            RequireSessionResumption = true,
+            // The printer does not negotiate RFC 7627 Extended Master Secret but still
+            // requires TLS session reuse for every FTPS data connection.
+            AllowLegacyResumption = true,
+        };
 
         try
         {

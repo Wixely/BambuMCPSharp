@@ -28,6 +28,7 @@
     <PackageReference Include="Serilog.Enrichers.Environment" />
     <PackageReference Include="Serilog.Enrichers.Process" />
     <PackageReference Include="Serilog.Enrichers.Thread" />
+    <PackageReference Include="Wixely.FluentFTP.BouncyCastle" />
   </ItemGroup>
 
   <ItemGroup>
@@ -35,6 +36,8 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="artifacts\**\*.cs" />
+    <Compile Remove="experiments\**\*.cs" />
     <Compile Remove="tests\**\*.cs" />
   </ItemGroup>
 
