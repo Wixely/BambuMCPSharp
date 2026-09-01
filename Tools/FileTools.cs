@@ -82,6 +82,15 @@ public static class FileTools
                 estimatedTime = plate.EstimatedTime,
                 bedType = plate.BedType,
                 filamentTypes = plate.FilamentTypes,
+                labelObjectsEnabled = plate.LabelObjectsEnabled,
+                partsSafelyAddressable = plate.PartsSafelyAddressable,
+                parts = plate.Parts.Select(part => new
+                {
+                    identifyId = part.IdentifyId,
+                    name = part.Name,
+                    preSkipped = part.PreSkipped,
+                }),
+                partFindings = plate.PartFindings,
                 hasHeaderBlock = plate.HasHeaderBlock,
                 hasConfigBlock = plate.HasConfigBlock,
                 hasExecutableBlock = plate.HasExecutableBlock,

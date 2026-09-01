@@ -3,6 +3,8 @@ using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Xml;
+using System.Xml.Linq;
 
 namespace BambuMCPSharp.Services;
 
@@ -12,9 +14,15 @@ public sealed record ProjectInspectionLimits(
     long MaxArchiveUncompressedBytes)
 {
     public const int MaxPlates = 64;
+    public const int MaxPartsPerPlate = 512;
     public const int HeaderCaptureBytes = 2 * 1024 * 1024;
     public const int MaxMetadataLineChars = 65_536;
 }
+
+public sealed record ProjectPart(
+    int IdentifyId,
+    string Name,
+    bool PreSkipped);
 
 public sealed record GcodeInspection(
     int Plate,
@@ -31,6 +39,10 @@ public sealed record GcodeInspection(
     string? EstimatedTime,
     string? BedType,
     IReadOnlyList<string> FilamentTypes,
+    bool LabelObjectsEnabled,
+    bool PartsSafelyAddressable,
+    IReadOnlyList<ProjectPart> Parts,
+    IReadOnlyList<string> PartFindings,
     bool HasHeaderBlock,
     bool HasConfigBlock,
     bool HasExecutableBlock,
@@ -103,7 +115,9 @@ public static partial class ProjectInspector
         if (fileName.EndsWith(".gcode", StringComparison.OrdinalIgnoreCase))
         {
             var plate = await InspectGcodeAsync(
-                file, info.Length, 1, fileName, normalizedTarget, limits.MaxArchiveUncompressedBytes, cancellationToken)
+                file, info.Length, 1, fileName, normalizedTarget, limits.MaxArchiveUncompressedBytes,
+                PartCatalogue.Unavailable("Standalone G-code has no Metadata/slice_info.config part catalogue."),
+                cancellationToken)
                 .ConfigureAwait(false);
             return Shape(fileName, "gcode", info.Length, sha256, normalizedTarget, [plate], []);
         }
@@ -172,6 +186,11 @@ public static partial class ProjectInspector
             throw new InvalidDataException("The archive contains duplicate plate numbers.");
         }
 
+        var partCatalogues = await ReadPartCataloguesAsync(
+            archive,
+            candidates.Select(candidate => candidate.Plate).ToArray(),
+            cancellationToken).ConfigureAwait(false);
+
         var plates = new List<GcodeInspection>(candidates.Count);
         foreach (var candidate in candidates)
         {
@@ -184,6 +203,9 @@ public static partial class ProjectInspector
                 candidate.Entry.FullName.Replace('\\', '/'),
                 targetModel,
                 limits.MaxArchiveUncompressedBytes,
+                partCatalogues.TryGetValue(candidate.Plate, out var catalogue)
+                    ? catalogue
+                    : PartCatalogue.Unavailable($"Metadata/slice_info.config has no unambiguous catalogue for plate {candidate.Plate}."),
                 cancellationToken).ConfigureAwait(false));
         }
 
@@ -197,6 +219,7 @@ public static partial class ProjectInspector
         string entry,
         string targetModel,
         long maxBytes,
+        PartCatalogue partCatalogue,
         CancellationToken cancellationToken)
     {
         if (declaredLength <= 0 || declaredLength > maxBytes)
@@ -281,6 +304,10 @@ public static partial class ProjectInspector
             metadata.EstimatedTime,
             metadata.BedType,
             metadata.FilamentTypes,
+            partCatalogue.LabelObjectsEnabled,
+            partCatalogue.SafelyAddressable,
+            partCatalogue.Parts,
+            partCatalogue.Findings,
             hasHeader,
             hasConfig,
             hasExecutable,
@@ -348,6 +375,141 @@ public static partial class ProjectInspector
             estimatedTime,
             Value(values, "curr_bed_type") ?? Value(values, "bed_type"),
             SplitList(Value(values, "filament_type")));
+    }
+
+    private static async Task<IReadOnlyDictionary<int, PartCatalogue>> ReadPartCataloguesAsync(
+        ZipArchive archive,
+        IReadOnlyCollection<int> gcodePlates,
+        CancellationToken cancellationToken)
+    {
+        var entries = archive.Entries
+            .Where(entry => string.Equals(
+                entry.FullName.Replace('\\', '/'),
+                "Metadata/slice_info.config",
+                StringComparison.OrdinalIgnoreCase))
+            .ToList();
+        if (entries.Count == 0) return new Dictionary<int, PartCatalogue>();
+        if (entries.Count > 1)
+        {
+            throw new InvalidDataException("The archive contains duplicate Metadata/slice_info.config entries.");
+        }
+
+        var entry = entries[0];
+        if (entry.Length <= 0)
+        {
+            throw new InvalidDataException("Metadata/slice_info.config is empty.");
+        }
+
+        await using var stream = entry.Open();
+        var settings = new XmlReaderSettings
+        {
+            Async = true,
+            DtdProcessing = DtdProcessing.Prohibit,
+            XmlResolver = null,
+            MaxCharactersInDocument = entry.Length,
+        };
+
+        XDocument document;
+        try
+        {
+            using var reader = XmlReader.Create(stream, settings);
+            document = await XDocument.LoadAsync(reader, LoadOptions.None, cancellationToken).ConfigureAwait(false);
+        }
+        catch (XmlException exception)
+        {
+            throw new InvalidDataException("Metadata/slice_info.config is not safe, well-formed XML.", exception);
+        }
+
+        var plateElements = document.Descendants().Where(element => element.Name.LocalName == "plate").ToList();
+        var catalogues = new Dictionary<int, PartCatalogue>();
+        foreach (var plateElement in plateElements)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var plateNumber = ReadPlateNumber(plateElement);
+            if (plateNumber is null && plateElements.Count == 1 && gcodePlates.Count == 1)
+            {
+                plateNumber = gcodePlates.Single();
+            }
+            if (plateNumber is null || !gcodePlates.Contains(plateNumber.Value)) continue;
+            if (catalogues.ContainsKey(plateNumber.Value))
+            {
+                throw new InvalidDataException($"Metadata/slice_info.config contains duplicate plate {plateNumber.Value} catalogues.");
+            }
+
+            catalogues.Add(plateNumber.Value, ReadPartCatalogue(plateElement));
+        }
+
+        return catalogues;
+    }
+
+    private static int? ReadPlateNumber(XElement plate)
+    {
+        var value = plate.Elements()
+            .FirstOrDefault(element =>
+                element.Name.LocalName == "metadata" &&
+                string.Equals((string?)element.Attribute("key"), "index", StringComparison.OrdinalIgnoreCase))?
+            .Attribute("value")?.Value;
+        return int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var number) &&
+               number is >= 1 and <= ProjectInspectionLimits.MaxPlates
+            ? number
+            : null;
+    }
+
+    private static PartCatalogue ReadPartCatalogue(XElement plate)
+    {
+        var findings = new List<string>();
+        var labelValue = plate.Elements()
+            .FirstOrDefault(element =>
+                element.Name.LocalName == "metadata" &&
+                string.Equals((string?)element.Attribute("key"), "label_object_enabled", StringComparison.OrdinalIgnoreCase))?
+            .Attribute("value")?.Value;
+        var labelObjectsEnabled = labelValue is not null &&
+            (string.Equals(labelValue, "true", StringComparison.OrdinalIgnoreCase) || labelValue == "1");
+        if (!labelObjectsEnabled)
+        {
+            findings.Add("The sliced plate does not enable object labelling/exclusion, so Skip Parts is unavailable.");
+        }
+
+        var objectElements = plate.Elements().Where(element => element.Name.LocalName == "object").ToList();
+        if (objectElements.Count > ProjectInspectionLimits.MaxPartsPerPlate)
+        {
+            throw new InvalidDataException(
+                $"A plate contains {objectElements.Count:N0} objects, over the {ProjectInspectionLimits.MaxPartsPerPlate:N0}-part inspection limit.");
+        }
+
+        var parts = new List<ProjectPart>(objectElements.Count);
+        foreach (var element in objectElements)
+        {
+            var idText = element.Attribute("identify_id")?.Value;
+            var name = element.Attribute("name")?.Value?.Trim();
+            if (!int.TryParse(idText, NumberStyles.Integer, CultureInfo.InvariantCulture, out var id) ||
+                id is < 0 or > 0x00FF_FFFF)
+            {
+                findings.Add("At least one part has a missing or invalid identify_id.");
+                continue;
+            }
+            if (string.IsNullOrWhiteSpace(name) || name.Length > 512)
+            {
+                findings.Add($"Part {id} has a missing or excessive name.");
+                continue;
+            }
+
+            var skipped = string.Equals(element.Attribute("skipped")?.Value, "true", StringComparison.OrdinalIgnoreCase) ||
+                          element.Attribute("skipped")?.Value == "1";
+            parts.Add(new ProjectPart(id, name, skipped));
+        }
+
+        if (parts.Count == 0) findings.Add("The selected plate has no addressable parts.");
+        if (parts.GroupBy(part => part.IdentifyId).Any(group => group.Count() > 1))
+        {
+            findings.Add("The selected plate contains duplicate identify_id values; selecting one could skip multiple parts.");
+        }
+
+        var safelyAddressable = labelObjectsEnabled &&
+                                parts.Count > 0 &&
+                                parts.Count == objectElements.Count &&
+                                parts.Select(part => part.IdentifyId).Distinct().Count() == parts.Count;
+        return new PartCatalogue(labelObjectsEnabled, safelyAddressable, parts, findings);
     }
 
     private static ProjectInspection Shape(
@@ -437,4 +599,13 @@ public static partial class ProjectInspector
         string? EstimatedTime,
         string? BedType,
         IReadOnlyList<string> FilamentTypes);
+
+    private sealed record PartCatalogue(
+        bool LabelObjectsEnabled,
+        bool SafelyAddressable,
+        IReadOnlyList<ProjectPart> Parts,
+        IReadOnlyList<string> Findings)
+    {
+        public static PartCatalogue Unavailable(string finding) => new(false, false, [], [finding]);
+    }
 }

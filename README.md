@@ -17,7 +17,7 @@ Default port: **5718**. MCP endpoint: `http://localhost:5718/mcp`.
 - **Diagnostics and bounded error acknowledgement.** Active printer errors come back as their `HMS_xxxx_xxxx_xxxx_xxxx` code with severity and the Bambu wiki URL that explains the fix. `bambu_diagnostics` adds print-error, stage, temperature, fan, storage, camera, and connectivity context. A separate off-by-default tool can acknowledge only the exact current `print_error` after its physical cause is confirmed resolved.
 - **Full job control, layered safely.** Pause/resume by default once writes are enabled; stop, start, temperatures, motion, raw G-code, and calibration each behind their own gate, off by default.
 - **SD-card file management** over implicit FTPS: list, download, upload (the hand-off point from the slicing system), delete. Local files are confined to a configured transfer directory — the agent names files, never paths.
-- **Bounded sliced-file inspection.** `bambu_inspect_project` reads an existing `.gcode.3mf`, `.3mf`, or standalone `.gcode` from the transfer directory without uploading or executing it. It checks Bambu block structure, target printer model, plates, nozzle metadata, build dimensions, bed type, filament types, time, layers, and archive expansion limits.
+- **Bounded sliced-file inspection.** `bambu_inspect_project` reads an existing `.gcode.3mf`, `.3mf`, or standalone `.gcode` from the transfer directory without uploading or executing it. It checks Bambu block structure, target printer model, plates, nozzle metadata, build dimensions, bed type, filament types, time, layers, Skip Parts object IDs/names, and archive expansion limits.
 - **Read-only by default** — nothing touches the printer until you set `Bambu:ReadOnly=false`, and the dangerous tail needs a second gate on top.
 - **Multiple printers** by alias, for the day this grows into a farm.
 - Configuration via `BambuMCPSharp.json`, environment variables (`BAMBUMCP_` prefix), or command line.
@@ -123,6 +123,14 @@ Use `bambu_diagnostics` first. It is read-only and reports active HMS alerts plu
 4. `confirmPhysicalCauseResolved=true`.
 
 The command is refused when the active error has changed or disappeared. Acknowledging an error does not repair the fault, does not clear unrelated HMS entries, and may allow a paused job to proceed; verify the result with `bambu_diagnostics`.
+
+### X1 Skip Parts
+
+`bambu_inspect_project` reports each plate's `parts` with the Bambu `identifyId`, display name, and whether it was already excluded when sliced. `partsSafelyAddressable=true` means the sliced plate contains unique IDs and has object labelling/exclusion enabled.
+
+During a matching running or paused X1/X1C job, call `bambu_skip_objects` with the inspected `localName`, one-based `plate`, and one or more `objectIds`. The tool re-inspects the local project immediately before the command and refuses unknown or duplicate IDs, an active-job filename mismatch, parts already listed in the printer's `s_obj`, unsafe slicer metadata, or a request that would skip every remaining part. Its result names the requested and remaining parts and reports whether a refreshed printer state contains the requested IDs. `bambu_status` also exposes the current `skippedObjectIds`.
+
+Skipping is irreversible for the current print. If every remaining part should stop, use the separately gated `bambu_stop_print`; Skip Parts intentionally cannot be used as an indirect stop command.
 
 ## Configuration
 

@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Text.Json.Nodes;
 using BambuMCPSharp.Services;
+using Microsoft.Extensions.Hosting;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
 
@@ -107,28 +108,97 @@ public static class ControlTools
     }
 
     [McpServerTool(Name = "bambu_skip_objects"),
-     Description("Exclude specific objects from the rest of the running print (e.g. one object detached or is spaghetti, save the others). Object ids come from the sliced plate's model metadata. Requires Bambu:AllowPrintControl=true.")]
+     Description("Use the X1/X1C mid-print Skip Parts feature for named objects from a locally inspected sliced project. Requires a matching running/paused job, safe unique identify_id metadata, at least one unskipped part left afterward, Bambu:ReadOnly=false, and Bambu:AllowPrintControl=true. Returns bounded verification from print.s_obj.")]
     public static async Task<string> SkipObjects(
         PrinterRegistry registry,
         SafetyGate gate,
-        [Description("Object ids to skip, as integers.")] int[] objectIds,
+        IHostEnvironment env,
+        [Description("Object identify_id values returned under the selected plate by bambu_inspect_project.")] int[] objectIds,
+        [Description("Name of the matching sliced .gcode.3mf/.3mf file inside the configured transfer directory.")] string localName,
+        [Description("One-based plate number inside the sliced project. Default 1.")] int plate = 1,
         [Description("Printer alias. Omit to use the default printer.")] string? alias = null,
         CancellationToken ct = default)
     {
         gate.EnsureFeature(gate.Options.EnableControl, "bambu_skip_objects", "EnableControl");
         gate.EnsurePrintControl("bambu_skip_objects");
-        if (objectIds is null || objectIds.Length == 0)
+        if (plate is < 1 or > ProjectInspectionLimits.MaxPlates)
         {
-            throw new McpException("bambu_skip_objects needs at least one object id.");
+            throw new McpException($"bambu_skip_objects plate must be between 1 and {ProjectInspectionLimits.MaxPlates}.");
+        }
+
+        var printer = registry.ResolveAlias(alias);
+        var localPath = ToolHelpers.ResolveLocalFile(
+            env.ContentRootPath, gate.Options.FileTransferDirectory, localName, "bambu_skip_objects");
+        if (!File.Exists(localPath))
+        {
+            throw new McpException(
+                $"'{localName}' was not found in the transfer directory ({gate.Options.FileTransferDirectory}).");
+        }
+
+        ProjectInspection inspection;
+        try
+        {
+            inspection = await ProjectInspector.InspectAsync(
+                localPath,
+                printer.Model,
+                new ProjectInspectionLimits(
+                    gate.Options.MaxProjectInspectBytes,
+                    gate.Options.MaxProjectArchiveEntries,
+                    gate.Options.MaxProjectUncompressedBytes),
+                ct);
+        }
+        catch (InvalidDataException exception)
+        {
+            throw new McpException($"bambu_skip_objects refused project '{localName}': {exception.Message}");
+        }
+        catch (IOException)
+        {
+            throw new McpException($"bambu_skip_objects could not safely read project '{localName}'.");
+        }
+
+        var selectedPlate = inspection.Plates.SingleOrDefault(item => item.Plate == plate);
+        if (selectedPlate is null)
+        {
+            throw new McpException($"bambu_skip_objects refused: project '{localName}' has no plate {plate}.");
         }
 
         var connection = registry.Get(alias);
-        var result = await connection.SendAsync("print", new JsonObject
+        var (state, beforeReportedUtc) = await connection.GetStateAsync(ct);
+        SkipPartsPlan plan;
+        try
         {
-            ["command"] = "skip_objects",
-            ["obj_list"] = new JsonArray(objectIds.Select(id => (JsonNode)id).ToArray()),
-        }, ct);
-        return ToolHelpers.CommandJson(gate, "skip_objects", result, new { objectIds });
+            plan = SkipPartsWorkflow.CreatePlan(state, selectedPlate, localName, objectIds ?? []);
+        }
+        catch (InvalidOperationException exception)
+        {
+            throw new McpException($"bambu_skip_objects refused: {exception.Message}");
+        }
+
+        var result = await connection.SendAsync("print", plan.Command, ct);
+        var (verifiedState, verifiedReportedUtc) = await connection.GetStateAsync(ct, forceRefresh: true);
+        var verification = SkipPartsWorkflow.Verify(verifiedState, plan);
+        if (verifiedReportedUtc is null ||
+            (beforeReportedUtc is not null && verifiedReportedUtc <= beforeReportedUtc))
+        {
+            verification = verification with { Outcome = "state_not_refreshed" };
+        }
+
+        return ToolHelpers.CommandJson(gate, "skip_objects", result, new
+        {
+            project = inspection.FileName,
+            inspection.Sha256,
+            plate,
+            requestedParts = plan.RequestedParts.Select(part => new { identifyId = part.IdentifyId, name = part.Name }),
+            alreadySkippedParts = plan.AlreadySkippedParts.Select(part => new { identifyId = part.IdentifyId, name = part.Name }),
+            remainingParts = plan.RemainingPartsAfterRequest.Select(part => new { identifyId = part.IdentifyId, name = part.Name }),
+            verification = new
+            {
+                verification.Outcome,
+                verification.ReportedSkippedObjectIds,
+                verification.MissingRequestedObjectIds,
+                reportedUtc = verifiedReportedUtc,
+            },
+        });
     }
 
     [McpServerTool(Name = "bambu_set_print_speed"),

@@ -13,7 +13,7 @@ namespace BambuMCPSharp.Tools;
 public static class StatusTools
 {
     [McpServerTool(Name = "bambu_status"),
-     Description("Get a parsed status digest of the printer: job state, progress, layers, remaining time, stage, speed, temperatures, fans, light, wifi, AMS summary, and active errors. This is the tool to poll in a monitoring loop; use bambu_status_raw for fields it omits.")]
+     Description("Get a parsed status digest of the printer: job state, progress, layers, remaining time, skipped part IDs, stage, speed, temperatures, fans, light, wifi, AMS summary, and active errors. This is the tool to poll in a monitoring loop; use bambu_status_raw for fields it omits.")]
     public static async Task<string> Status(
         PrinterRegistry registry,
         SafetyGate gate,
@@ -58,6 +58,7 @@ public static class StatusTools
                 speedLevel,
                 speedName = ToolHelpers.SpeedLevelName(speedLevel),
                 printError = ToolHelpers.Num(print?["print_error"]),
+                skippedObjectIds = SkipPartsWorkflow.ReadSkippedObjectIds(state),
             },
             temperaturesC = new
             {

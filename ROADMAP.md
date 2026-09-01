@@ -6,9 +6,9 @@ Next review: 2026-11-25
 
 This roadmap keeps slicing and G-code generation outside BambuMCPSharp. The server may inspect and dispatch an already-sliced file, but it must not rewrite toolpaths or silently broaden permission to heat, move, print, delete, or update a real printer.
 
-## Next implementation priority
+## Current validation priority
 
-- [ ] **End-to-end X1 Skip Parts workflow** — Owner: TBD. Make the X1/X1C mid-print “Skip Parts” feature safely usable without guessing numeric object IDs. Extend project inspection to catalogue the selected plate's object IDs and names, correlate them with the active print where the firmware exposes enough state, and report already-skipped and remaining parts. Before sending the existing `print.skip_objects` command, require an active compatible print, reject unknown or duplicate IDs, refuse a request that would skip every remaining part, and return the exact requested objects plus the printer acknowledgement and a bounded verification result. Validate the payload and behavior on the X1C with a deliberately prepared multi-object test print.
+- [ ] **End-to-end X1 Skip Parts workflow** — Owner: TBD. Implementation completed: 2026-09-01. Project inspection now catalogues each plate's object IDs, names, and pre-skipped state; the command correlates the local project with the active print, validates live `s_obj`, rejects unsafe/unknown/duplicate/all-remaining selections, and performs bounded post-command verification. The X1C's live `s_obj` report shape was confirmed read-only on 2026-09-01. Remaining: validate the command payload and physical skip behavior with a deliberately prepared multi-object X1C test print.
 
 ## P0 — safe print hand-off
 

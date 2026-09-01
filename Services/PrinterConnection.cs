@@ -182,17 +182,19 @@ public sealed class PrinterConnection : IAsyncDisposable
     // ---------------------------------------------------------------- state
 
     /// <summary>
-    /// Snapshot of the merged state, refreshed first when older than
+    /// Snapshot of the merged state, refreshed first when forced or older than
     /// <see cref="BambuOptions.StateFreshSeconds"/> (a <c>pushall</c> is requested and the
     /// next report awaited, bounded). Returns whatever is cached if the refresh times out —
     /// staleness is reported, not thrown, so a monitoring loop keeps working through blips.
     /// </summary>
-    public async Task<(JsonObject State, DateTimeOffset? ReportedUtc)> GetStateAsync(CancellationToken ct)
+    public async Task<(JsonObject State, DateTimeOffset? ReportedUtc)> GetStateAsync(
+        CancellationToken ct,
+        bool forceRefresh = false)
     {
         await EnsureConnectedAsync(ct);
 
         var maxAge = TimeSpan.FromSeconds(Math.Max(1, _options.StateFreshSeconds));
-        if (LastReportUtc is { } last && DateTimeOffset.UtcNow - last < maxAge)
+        if (!forceRefresh && LastReportUtc is { } last && DateTimeOffset.UtcNow - last < maxAge)
         {
             return (SnapshotState(), LastReportUtc);
         }

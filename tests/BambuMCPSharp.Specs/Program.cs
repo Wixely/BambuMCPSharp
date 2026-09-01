@@ -17,6 +17,12 @@ var specifications = new (string Name, Func<Task> Run)[]
     ("file inspection size is bounded", FileInspectionSizeIsBounded),
     ("3MF entry count is bounded", ThreeMfEntryCountIsBounded),
     ("3MF expansion is bounded", ThreeMfExpansionIsBounded),
+    ("3MF Skip Parts catalogue is parsed by plate", ThreeMfSkipPartsCatalogueIsParsed),
+    ("unsafe Skip Parts metadata is not addressable", UnsafeSkipPartsMetadataIsNotAddressable),
+    ("slice-info DTD is refused", SliceInfoDtdIsRefused),
+    ("Skip Parts plan validates and verifies object ids", SkipPartsPlanValidatesAndVerifiesObjectIds),
+    ("Skip Parts binds to the reported active file", SkipPartsBindsToReportedActiveFile),
+    ("Skip Parts refuses to remove every remaining part", SkipPartsRefusesEveryRemainingPart),
     ("printer diagnostics expose current error context", PrinterDiagnosticsExposeCurrentErrorContext),
     ("clear-print-error payload matches Bambu protocol", ClearPrintErrorPayloadMatchesProtocol),
     ("error acknowledgement requires both safety gates", ErrorAcknowledgementRequiresBothSafetyGates),
@@ -161,6 +167,166 @@ static async Task ThreeMfExpansionIsBounded()
     });
 }
 
+static async Task ThreeMfSkipPartsCatalogueIsParsed()
+{
+    await WithArchiveAsync(
+        [
+            ("Metadata/plate_1.gcode", ValidGcode("Bambu Lab X1 Carbon")),
+            ("Metadata/slice_info.config", ValidSliceInfo()),
+        ],
+        async path =>
+        {
+            var result = await ProjectInspector.InspectAsync(path, "X1C", DefaultLimits());
+            var plate = result.Plates.Single();
+            AssertEx.True(plate.LabelObjectsEnabled);
+            AssertEx.True(plate.PartsSafelyAddressable);
+            AssertEx.Equal(3, plate.Parts.Count);
+            AssertEx.Equal(101, plate.Parts[0].IdentifyId);
+            AssertEx.Equal("left bracket", plate.Parts[0].Name);
+            AssertEx.True(plate.Parts[1].PreSkipped);
+        });
+}
+
+static async Task UnsafeSkipPartsMetadataIsNotAddressable()
+{
+    const string unsafeSliceInfo =
+        "<config><plate>" +
+        "<metadata key=\"index\" value=\"1\"/>" +
+        "<metadata key=\"label_object_enabled\" value=\"false\"/>" +
+        "<object identify_id=\"7\" name=\"first\" skipped=\"false\"/>" +
+        "<object identify_id=\"7\" name=\"second\" skipped=\"false\"/>" +
+        "</plate></config>";
+    await WithArchiveAsync(
+        [
+            ("Metadata/plate_1.gcode", ValidGcode("Bambu Lab X1 Carbon")),
+            ("Metadata/slice_info.config", unsafeSliceInfo),
+        ],
+        async path =>
+        {
+            var result = await ProjectInspector.InspectAsync(path, "X1C", DefaultLimits());
+            var plate = result.Plates.Single();
+            AssertEx.False(plate.LabelObjectsEnabled);
+            AssertEx.False(plate.PartsSafelyAddressable);
+            AssertEx.True(plate.PartFindings.Any(finding => finding.Contains("duplicate", StringComparison.OrdinalIgnoreCase)));
+        });
+}
+
+static async Task SliceInfoDtdIsRefused()
+{
+    const string unsafeSliceInfo =
+        "<!DOCTYPE config [<!ENTITY probe SYSTEM \"file:///must-not-be-read\">]>" +
+        "<config><plate><metadata key=\"index\" value=\"1\"/><object identify_id=\"1\" name=\"&probe;\"/></plate></config>";
+    await WithArchiveAsync(
+        [
+            ("Metadata/plate_1.gcode", ValidGcode("Bambu Lab X1 Carbon")),
+            ("Metadata/slice_info.config", unsafeSliceInfo),
+        ],
+        async path => await AssertEx.ThrowsAsync<InvalidDataException>(() =>
+            ProjectInspector.InspectAsync(path, "X1C", DefaultLimits())));
+}
+
+static async Task SkipPartsPlanValidatesAndVerifiesObjectIds()
+{
+    await WithArchiveAsync(
+        [
+            ("Metadata/plate_1.gcode", ValidGcode("Bambu Lab X1 Carbon")),
+            ("Metadata/slice_info.config", ValidSliceInfo()),
+        ],
+        async path =>
+        {
+            var inspection = await ProjectInspector.InspectAsync(path, "X1C", DefaultLimits());
+            var state = JsonNode.Parse("""
+                {
+                  "print": {
+                    "gcode_state": "RUNNING",
+                    "task_id": "44",
+                    "subtask_id": "45",
+                    "gcode_file": "/multi.gcode.3mf",
+                    "subtask_name": "multi.gcode",
+                    "s_obj": [202]
+                  }
+                }
+                """)!.AsObject();
+
+            var plan = SkipPartsWorkflow.CreatePlan(state, inspection.Plates.Single(), "multi.gcode.3mf", [101]);
+            AssertEx.Equal("skip_objects", plan.Command["command"]!.GetValue<string>());
+            AssertEx.Equal(101, plan.Command["obj_list"]![0]!.GetValue<int>());
+            AssertEx.Equal("left bracket", plan.RequestedParts.Single().Name);
+            AssertEx.Equal(202, plan.AlreadySkippedParts.Single().IdentifyId);
+            AssertEx.Equal(303, plan.RemainingPartsAfterRequest.Single().IdentifyId);
+
+            var after = JsonNode.Parse("""
+                {
+                  "print": {
+                    "gcode_state": "RUNNING",
+                    "task_id": "44",
+                    "subtask_id": "45",
+                    "gcode_file": "/multi.gcode.3mf",
+                    "s_obj": [202, 101]
+                  }
+                }
+                """)!.AsObject();
+            var verification = SkipPartsWorkflow.Verify(after, plan);
+            AssertEx.Equal("verified", verification.Outcome);
+            AssertEx.Equal(0, verification.MissingRequestedObjectIds.Count);
+        });
+}
+
+static async Task SkipPartsRefusesEveryRemainingPart()
+{
+    await WithArchiveAsync(
+        [
+            ("Metadata/plate_1.gcode", ValidGcode("Bambu Lab X1 Carbon")),
+            ("Metadata/slice_info.config", ValidSliceInfo()),
+        ],
+        async path =>
+        {
+            var inspection = await ProjectInspector.InspectAsync(path, "X1C", DefaultLimits());
+            var state = JsonNode.Parse("""
+                {
+                  "print": {
+                    "gcode_state": "PAUSE",
+                    "gcode_file": "multi.gcode.3mf",
+                    "s_obj": [202]
+                  }
+                }
+                """)!.AsObject();
+            await AssertEx.ThrowsAsync<InvalidOperationException>(() =>
+            {
+                SkipPartsWorkflow.CreatePlan(state, inspection.Plates.Single(), "multi.gcode.3mf", [101, 303]);
+                return Task.CompletedTask;
+            });
+        });
+}
+
+static async Task SkipPartsBindsToReportedActiveFile()
+{
+    await WithArchiveAsync(
+        [
+            ("Metadata/plate_1.gcode", ValidGcode("Bambu Lab X1 Carbon")),
+            ("Metadata/slice_info.config", ValidSliceInfo()),
+        ],
+        async path =>
+        {
+            var inspection = await ProjectInspector.InspectAsync(path, "X1C", DefaultLimits());
+            var state = JsonNode.Parse("""
+                {
+                  "print": {
+                    "gcode_state": "RUNNING",
+                    "gcode_file": "different.gcode.3mf",
+                    "subtask_name": "multi.gcode",
+                    "s_obj": []
+                  }
+                }
+                """)!.AsObject();
+            await AssertEx.ThrowsAsync<InvalidOperationException>(() =>
+            {
+                SkipPartsWorkflow.CreatePlan(state, inspection.Plates.Single(), "multi.gcode.3mf", [101]);
+                return Task.CompletedTask;
+            });
+        });
+}
+
 static Task PrinterDiagnosticsExposeCurrentErrorContext()
 {
     var state = JsonNode.Parse("""
@@ -260,6 +426,15 @@ static string ValidGcode(string model) =>
     "; EXECUTABLE_BLOCK_START\n" +
     "; TEST DATA ONLY - CONTAINS NO MACHINE COMMANDS\n" +
     "; EXECUTABLE_BLOCK_END\n";
+
+static string ValidSliceInfo() =>
+    "<config><plate>" +
+    "<metadata key=\"index\" value=\"1\"/>" +
+    "<metadata key=\"label_object_enabled\" value=\"true\"/>" +
+    "<object identify_id=\"101\" name=\"left bracket\" skipped=\"false\"/>" +
+    "<object identify_id=\"202\" name=\"failed bracket\" skipped=\"true\"/>" +
+    "<object identify_id=\"303\" name=\"right bracket\" skipped=\"false\"/>" +
+    "</plate></config>";
 
 static async Task WithTempFileAsync(string extension, string content, Func<string, Task> action)
 {
