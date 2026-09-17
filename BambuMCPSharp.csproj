@@ -28,7 +28,7 @@
     <PackageReference Include="Serilog.Enrichers.Environment" />
     <PackageReference Include="Serilog.Enrichers.Process" />
     <PackageReference Include="Serilog.Enrichers.Thread" />
-    <PackageReference Include="Wixely.FluentFTP.BouncyCastle" />
+    <PackageReference Include="FluentFTP.BouncyCastle" />
   </ItemGroup>
 
   <ItemGroup>

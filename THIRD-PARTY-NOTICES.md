@@ -16,12 +16,25 @@ native libraries, no P/Invoke.
 - License: MIT
 - Purpose: MQTT 3.1.1 over TLS to the printer on port 8883 — status reports and commands.
 
-## FluentFTP 54.2.0
+## FluentFTP 55.0.0
 
 - Source: <https://github.com/robinrodricks/FluentFTP>
 - License: MIT
 - Purpose: Implicit FTPS (port 990) to the printer's SD card, including the TLS session
   reuse its FTP daemon requires on data connections.
+
+## FluentFTP.BouncyCastle 1.0.0
+
+- Source: <https://github.com/robinrodricks/FluentFTP/tree/master/FluentFTP.BouncyCastle>
+- Package source: <https://www.nuget.org/packages/FluentFTP.BouncyCastle/1.0.0>
+- License: MIT
+- Purpose: Managed TLS 1.2 transport with explicit control-session reuse for FTPS data connections.
+
+## BouncyCastle.Cryptography 2.7.0 (transitive, via FluentFTP.BouncyCastle)
+
+- Source: <https://github.com/bcgit/bc-csharp>
+- License: MIT
+- Purpose: Managed cryptography and TLS implementation for the FTPS adapter.
 
 ## BambuLab.X1Camera and BambuLab.X1Camera.Imaging 0.1.0-alpha.3
 

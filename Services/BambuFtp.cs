@@ -2,7 +2,7 @@ using BambuMCPSharp.Configuration;
 using FluentFTP;
 using Microsoft.Extensions.Options;
 using ModelContextProtocol;
-using Wixely.FluentFTP.BouncyCastle;
+using FluentFTP.BouncyCastle;
 
 namespace BambuMCPSharp.Services;
 
@@ -43,7 +43,7 @@ public sealed class BambuFtp
         client.Config.DataConnectionConnectTimeout = timeoutMs;
         client.Config.DataConnectionReadTimeout = timeoutMs;
         client.Config.CustomStream = typeof(BouncyCastleFtpStream);
-        client.Config.CustomStreamConfig = new BouncyCastleFtpStreamConfig
+        client.Config.CustomStreamConfig = new BouncyCastleFtpConfig
         {
             RequireSessionResumption = true,
             // The printer does not negotiate RFC 7627 Extended Master Secret but still

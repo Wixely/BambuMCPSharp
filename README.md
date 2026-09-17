@@ -169,7 +169,7 @@ Set `Server:Password` to require authentication on `/mcp`. Clients send it as `X
 
 ## Building
 
-Requires the .NET 10 SDK. The FTPS adapter (`Wixely.FluentFTP.BouncyCastle`) and camera packages (`BambuLab.X1Camera`, `BambuLab.X1Camera.Imaging`, and transitively `H264Sharp.Decoder`) come from the **Wixely GitHub Packages feed**, and GitHub requires authentication even for public packages. One-time setup with a token carrying `read:packages`:
+Requires the .NET 10 SDK. FluentFTP and its official FTPS adapter (`FluentFTP.BouncyCastle`) come from **nuget.org**. The camera packages (`BambuLab.X1Camera`, `BambuLab.X1Camera.Imaging`, and transitively `H264Sharp.Decoder`) come from the **Wixely GitHub Packages feed**, and GitHub requires authentication even for public packages. One-time setup with a token carrying `read:packages`:
 
 ```sh
 dotnet nuget update source GitHub-Wixely-Packages \
